@@ -1,8 +1,8 @@
 """
 KeyTyper - Cross-Platform Terminal Text Formatter
 
-A powerful, cross-platform Python library for creating beautiful terminal output 
-with typing effects, colors, and formatting. KeyTyper automatically detects your 
+A powerful, cross-platform Python library for creating beautiful terminal output
+with typing effects, colors, and formatting. KeyTyper automatically detects your
 operating system and provides optimal terminal support for Windows, macOS, and Linux.
 
 Features:
