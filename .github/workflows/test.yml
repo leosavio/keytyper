@@ -21,10 +21,12 @@ jobs:
           - os: macos-latest
             python-version: '3.12'
           # Test older Python versions on Ubuntu only
-          - os: ubuntu-20.04
-            python-version: '3.7'
           - os: ubuntu-latest
             python-version: '3.8'
+          - os: ubuntu-latest
+            python-version: '3.9'
+          - os: ubuntu-latest
+            python-version: '3.10'
           - os: ubuntu-latest
             python-version: '3.11'
 
