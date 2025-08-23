@@ -1,0 +1,5 @@
+# KeyTyper has no required dependencies - it uses only Python standard library
+# This keeps the package lightweight and reduces compatibility issues
+
+# Optional dependencies for Windows users (automatically installed on Windows)
+# colorama>=0.4.4; sys_platform == "win32"

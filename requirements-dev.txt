@@ -1,0 +1,31 @@
+# Development dependencies for KeyTyper
+
+# Testing
+pytest>=6.0
+pytest-cov>=2.0
+pytest-mock>=3.0
+
+# Code formatting and linting
+black>=21.0
+flake8>=3.8
+isort>=5.0
+
+# Type checking
+mypy>=0.800
+
+# Documentation
+sphinx>=4.0
+sphinx-rtd-theme>=1.0
+
+# Build and publishing
+build>=0.7
+twine>=3.0
+setuptools>=45
+wheel>=0.36
+
+# Development tools
+pre-commit>=2.0
+tox>=3.0
+
+# Optional: for better Windows support during development
+colorama>=0.4.4
