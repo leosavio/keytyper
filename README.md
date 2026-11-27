@@ -23,9 +23,14 @@ A powerful, cross-platform Python library for creating beautiful terminal output
 
 ### Installation
 
+Python 3.11 or newer, no dependencies:
+
 ```bash
-pip install keytyper
+pip install keytyper        # or, in a uv project: uv add keytyper
 ```
+
+Releases are published from GitHub Actions with Trusted Publishing; PyPI shows the attestation
+of each file.
 
 ### Basic Usage
 

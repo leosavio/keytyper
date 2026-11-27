@@ -5,12 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2026-11-27
 
-### Added
-- Initial release preparation
+First release on PyPI.
 
-## [0.1.0] - 2024-01-XX
+### Packaging and release
+- Python 3.11 to 3.15 (the versions CPython still supports); 3.8 to 3.10 are no longer supported.
+- `pyproject.toml` only (`setup.py` removed), SPDX license expression `MIT`.
+- Published from GitHub Actions with Trusted Publishing and PEP 740 attestations: tag `vX.Y.Z`
+  to PyPI, `vX.Y.Z-rc.N` to TestPyPI. Tests on Linux, macOS and Windows; zizmor, CodeQL,
+  Dependabot and secret scanning.
 
 ### Added
 - Initial release of KeyTyper
@@ -41,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 🎯 Specialized methods for different message types
 
 ### Technical Details
-- Python 3.7+ support
+- Python 3.11+ support
 - Type hints for better IDE support
 - Comprehensive error handling
 - Automatic terminal capability detection
