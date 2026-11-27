@@ -1,97 +1,142 @@
-name: Publish to PyPI
+name: publish
+
+# Tag vX.Y.Z publishes keytyper X.Y.Z to PyPI; a pre-release tag vX.Y.Z-rc.N publishes
+# X.Y.ZrcN to TestPyPI only. Trusted Publishing: no token is stored; PyPI and TestPyPI trust
+# this workflow and its environment (pypi, testpypi). The GitHub release comes last, with the
+# same files that were published.
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      test_pypi:
-        description: 'Publish to Test PyPI instead of PyPI'
-        required: false
-        default: false
-        type: boolean
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    
-    - name: Install build dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-    
-    - name: Build package
-      run: |
-        python -m build
-    
-    - name: Check package
-      run: |
-        twine check dist/*
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: dist
-        path: dist/
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: false
+
+      # The committed version is the base (X.Y.Z); a pre-release tag adds the rcN suffix to the
+      # build only. A tag whose base differs from pyproject.toml fails here.
+      - id: version
+        name: version from the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          base="$(sed -nE 's/^version = "([^"]+)"$/\1/p' pyproject.toml)"
+          tagbase="$(printf '%s' "$TAG" | sed -E 's/^v//; s/-.*$//')"
+          [ "$base" = "$tagbase" ] || { echo "tag $TAG does not match version $base in pyproject.toml"; exit 1; }
+          version="$(printf '%s' "$TAG" | sed -E 's/^v//; s/-(rc|a|b)\.?([0-9]+)$/\1\2/; s/-alpha\.?([0-9]+)$/a\1/; s/-beta\.?([0-9]+)$/b\1/')"
+          printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?$' || { echo "unsupported tag $TAG"; exit 1; }
+          sed -i -E "s/^version = \"[^\"]+\"$/version = \"${version}\"/" pyproject.toml
+          sed -i -E "s/^__version__ = \"[^\"]+\"$/__version__ = \"${version}\"/" keytyper/__init__.py
+          grep -E '^version = ' pyproject.toml
+          grep -E '^__version__ = ' keytyper/__init__.py
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: build sdist and wheel
+        run: |
+          set -eu
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" uv build
+          uvx twine==6.2.0 check --strict dist/*
+          (cd dist && sha256sum ./* | tee SHA256SUMS)
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
 
   test-install:
     needs: build
+    name: install ${{ matrix.os }} / Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.8', '3.12']
-    
+        os: [ubuntu-24.04, macos-15, windows-2025]
+        python-version: ["3.11", "3.15"]
     steps:
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Download build artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: dist
-        path: dist/
-    
-    - name: Test installation from wheel
-      run: |
-        pip install dist/*.whl
-        python -c "from keytyper import KeyTyper; kt = KeyTyper(); print('KeyTyper imported successfully!')"
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+
+      - name: install the wheel and import it
+        shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -eu
+          python -m pip install dist/*.whl
+          python -c "import keytyper; from keytyper import KeyTyper; KeyTyper(); assert keytyper.__version__ == '${VERSION}', keytyper.__version__; print('keytyper', keytyper.__version__)"
 
   publish:
     needs: [build, test-install]
-    runs-on: ubuntu-latest
-    environment: 
-      name: ${{ github.event.inputs.test_pypi == 'true' && 'test-pypi' || 'pypi' }}
-      url: ${{ github.event.inputs.test_pypi == 'true' && 'https://test.pypi.org/p/keytyper' || 'https://pypi.org/p/keytyper' }}
-    
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: ${{ contains(github.ref_name, '-') && 'testpypi' || 'pypi' }}
+      url: ${{ contains(github.ref_name, '-') && 'https://test.pypi.org/project/keytyper/' || 'https://pypi.org/project/keytyper/' }}
+    permissions:
+      id-token: write # Trusted Publishing (OIDC) and PEP 740 attestations
     steps:
-    - name: Download build artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: dist
-        path: dist/
-    
-    - name: Publish to Test PyPI
-      if: github.event.inputs.test_pypi == 'true'
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        repository-url: https://test.pypi.org/legacy/
-        verbose: true
-    
-    - name: Publish to PyPI
-      if: github.event.inputs.test_pypi != 'true'
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.PYPI_API_TOKEN }}
-        verbose: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+
+      - name: keep only the distributions
+        run: rm -f dist/SHA256SUMS
+
+      - name: publish to TestPyPI
+        if: contains(github.ref_name, '-')
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: publish to PyPI
+        if: ${{ !contains(github.ref_name, '-') }}
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+
+  github-release:
+    needs: [build, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # create the GitHub release
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+
+      - name: create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -eu
+          pre=""; index="https://pypi.org/project/keytyper/${VERSION}/"
+          case "$TAG" in *-*) pre="--prerelease"; index="https://test.pypi.org/project/keytyper/${VERSION}/" ;; esac
+          # shellcheck disable=SC2086 # $pre is empty or one flag
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "$TAG" $pre \
+            --notes "keytyper ${VERSION}: ${index} (Trusted Publishing, with PEP 740 attestations). Install with \`pip install keytyper\` or \`uv add keytyper\`. Changes: [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md)."

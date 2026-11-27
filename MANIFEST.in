@@ -13,7 +13,6 @@ include requirements-dev.txt
 
 # Include configuration files
 include pyproject.toml
-include setup.py
 
 # Include tests
 recursive-include tests *.py
